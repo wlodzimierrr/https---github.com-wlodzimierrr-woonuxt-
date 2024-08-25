@@ -17,4 +17,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Start the Nuxt.js application
-CMD ["npm", "start"]
+CMD ["npm", "run", "serve"]

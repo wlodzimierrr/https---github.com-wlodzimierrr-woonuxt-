@@ -54,7 +54,7 @@ jobs:
           docker pull ghcr.io/wlodzimierrr/woonuxt:latest &&
           docker stop woonuxt &&
           docker rm woonuxt &&
-          docker run -d --name woonuxt --network wp-network -p 3000:3000 ghcr.io/wlodzimierrr/woonuxt:latest"
+          docker run -d --name woonuxt --network szerszywlodzimierz_wp-network -p 3000:3000 ghcr.io/wlodzimierrr/woonuxt:latest"
         env:
           GCE_INSTANCE: ${{ secrets.GCE_INSTANCE }}
           GCE_INSTANCE_ZONE: ${{ secrets.GCE_INSTANCE_ZONE }}

@@ -1,0 +1,64 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Create .env file
+        run: |
+          echo "GQL_HOST=${{ secrets.GQL_HOST }}" >> ./.env
+          echo "NUXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ secrets.NUXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}" >> ./.env
+          echo "NUXT_IMAGE_DOMAINS=${{ secrets.NUXT_IMAGE_DOMAINS }}" >> ./.env
+          echo "PRIMARY_COLOR=${{ secrets.PRIMARY_COLOR }}" >> ./.env
+          echo "NUXT_PUBLIC_PRODUCTS_PER_PAGE=${{ secrets.NUXT_PUBLIC_PRODUCTS_PER_PAGE }}" >> ./.env
+
+
+      - name: Build Docker image
+        run: docker build -t ghcr.io/wlodzimierrr/woonuxt:latest ./
+      
+      - name: Push Docker image to GitHub Container Registry
+        run: |
+          docker login ghcr.io -u ${{ github.actor }} --password-stdin <<< ${{ secrets.GHCR_TOKEN }}
+          docker push ghcr.io/wlodzimierrr/woonuxt:latest
+
+      - name: Configure Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 416.0.0'
+          service_account_key: ${{ secrets.GCE_SA_KEY }}
+          project_id: ${{ secrets.GCE_PROJECT }}
+          export_default_credentials: true
+
+      - name: Authenticate Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCE_SA_KEY }}
+
+      - name: SSH into Google Cloud VM and update Docker image
+        run: |
+          gcloud compute ssh ${GCE_INSTANCE} --zone ${GCE_INSTANCE_ZONE} --command "
+          export CR_PAT=${{ secrets.GHCR_TOKEN }};
+          echo \$CR_PAT | docker login ghcr.io -u \${{ github.actor }} --password-stdin;
+          docker pull ghcr.io/wlodzimierrr/compare_frontend:latest &&
+          docker stop compare_frontend &&
+          docker rm compare_frontend &&
+          docker run -d --name woonuxt --network wp-network -p 3000:3000 ghcr.io/wlodzimierrr/woonuxt:latest"
+        env:
+          GCE_INSTANCE: ${{ secrets.GCE_INSTANCE }}
+          GCE_INSTANCE_ZONE: ${{ secrets.GCE_INSTANCE_ZONE }}
+    
+      - name: Cleanup .env file
+        if: always()
+        run: rm -f ./.env
